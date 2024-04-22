@@ -214,13 +214,17 @@ const AlipayPaymentButton = ({
     })
   }
 
+  interface PaymentSessionData {
+    id: string;
+    url: string;
+  }
+
   // const cartId = cart.id as string
-  const paymentsession = cart.payment_session as unknown as string
+  const paymentsession = cart.payment_session?.data as unknown as PaymentSessionData
   console.log(cart);
 
   const handlePayment = () => {
-
-    window.location.href = paymentsession?.data.url
+    window.location.href = paymentsession.url
     const medusa = new Medusa({ baseUrl: "http://localhost:9000", maxRetries: 3 })
     medusa.carts.complete(cart.id)
       .then((res) => {
