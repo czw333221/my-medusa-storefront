@@ -5,10 +5,9 @@ import { OnApproveActions, OnApproveData } from "@paypal/paypal-js"
 import { PayPalButtons, usePayPalScriptReducer } from "@paypal/react-paypal-js"
 import { useElements, useStripe } from "@stripe/react-stripe-js"
 import { placeOrder } from "@modules/checkout/actions"
-import React, { useState } from "react"
+import React, { useEffect, useState } from "react"
 import ErrorMessage from "../error-message"
 import Spinner from "@modules/common/icons/spinner"
-import Medusa from "@medusajs/medusa-js"
 
 
 type PaymentButtonProps = {
@@ -31,7 +30,7 @@ const PaymentButton: React.FC<PaymentButtonProps> = ({ cart }) => {
     case "stripe":
       return <StripePaymentButton notReady={notReady} cart={cart} />
     case "manual":
-      return <ManualTestPaymentButton notReady={notReady} />
+      return <ManualTestPaymentButton notReady={notReady} cart={cart} />
     case "paypal":
       return <PayPalPaymentButton notReady={notReady} cart={cart} />
     case "alipay":
@@ -205,6 +204,12 @@ const AlipayPaymentButton = ({
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const eventSource = new EventSource('/alipay/notify_url', { withCredentials: true })
+  eventSource.onopen = function(event) {
+    // handle open event
+    console.log(eventSource.readyState);
+    console.log("长连接打开");
+  };
 
   const onPaymentCompleted = async () => {
     await placeOrder().catch((err) => {
@@ -224,14 +229,15 @@ const AlipayPaymentButton = ({
   console.log(cart);
 
   const handlePayment = () => {
-    window.location.href = paymentsession.url
-    const medusa = new Medusa({ baseUrl: "http://localhost:9000", maxRetries: 3 })
-    medusa.carts.complete(cart.id)
-      .then((res) => {
-        console.log(res.data.id);
-
-        setSubmitting(true)
-      })
+    window.open(paymentsession.url)
+    eventSource.onmessage = function (event) {
+      var data = event.data;
+      console.log(data);
+    };
+    eventSource.onerror = (err) => {
+      console.error('Error occurred:', err)
+      eventSource.close()
+    }
   }
   return (
     <>
@@ -248,7 +254,7 @@ const AlipayPaymentButton = ({
   )
 }
 
-const ManualTestPaymentButton = ({ notReady }: { notReady: boolean }) => {
+const ManualTestPaymentButton = ({cart, notReady }: {cart: Omit<Cart, "refundable_amount" | "refunded_total">, notReady: boolean }) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -260,6 +266,7 @@ const ManualTestPaymentButton = ({ notReady }: { notReady: boolean }) => {
   }
 
   const handlePayment = () => {
+    console.log(cart);
     setSubmitting(true)
     onPaymentCompleted()
     

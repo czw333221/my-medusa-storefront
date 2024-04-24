@@ -190,7 +190,6 @@ export async function placeOrder() {
   if (!cartId) throw new Error("No cartId cookie found")
 
   let cart
-
   try {
     cart = await completeCart(cartId)
     revalidateTag("cart")
