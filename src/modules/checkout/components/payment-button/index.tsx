@@ -14,6 +14,11 @@ type PaymentButtonProps = {
   cart: Omit<Cart, "refundable_amount" | "refunded_total">
 }
 
+interface PaymentSessionData {
+  id: string;
+  url: string;
+}
+
 const PaymentButton: React.FC<PaymentButtonProps> = ({ cart }) => {
   const notReady =
     !cart ||
@@ -154,7 +159,6 @@ const PayPalPaymentButton = ({
   }
 
   const session = cart.payment_session as PaymentSession
-  console.log(cart);
   const handlePayment = async (
     _data: OnApproveData,
     actions: OnApproveActions
@@ -204,13 +208,7 @@ const AlipayPaymentButton = ({
 }) => {
   const [submitting, setSubmitting] = useState(false)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
-  const eventSource = new EventSource('/alipay/notify_url', { withCredentials: true })
-  eventSource.onopen = function(event) {
-    // handle open event
-    console.log(eventSource.readyState);
-    console.log("长连接打开");
-  };
-
+  
   const onPaymentCompleted = async () => {
     await placeOrder().catch((err) => {
       console.error("Error in placeOrder:", err);
@@ -218,26 +216,36 @@ const AlipayPaymentButton = ({
       setSubmitting(false)
     })
   }
-
-  interface PaymentSessionData {
-    id: string;
-    url: string;
-  }
+  
 
   // const cartId = cart.id as string
   const paymentsession = cart.payment_session?.data as unknown as PaymentSessionData
-  console.log(cart);
-
+  
   const handlePayment = () => {
+    setSubmitting(true)
+    const eventSource = new EventSource('http://47.120.19.86:9000/sse', { withCredentials: true })
+    eventSource.onopen = function(event) {
+      // handle open event
+      console.log(eventSource.readyState);
+      console.log("长连接打开");
+    };
+    eventSource.onerror = function (event) {
+      // Handle SSE error
+      console.error("SSE connection error:", event);
+      setErrorMessage("支付状态同步出错，请稍后重试");
+      setSubmitting(false);
+      eventSource.close(); // Close the errored connection
+    };
     window.open(paymentsession.url)
     eventSource.onmessage = function (event) {
-      var data = event.data;
-      console.log(data);
+      const eventCartId = event.data.cartId;
+      console.log(eventCartId);
+      if(cart.id === eventCartId){
+        onPaymentCompleted()
+      }else{
+        setSubmitting(false)
+      }
     };
-    eventSource.onerror = (err) => {
-      console.error('Error occurred:', err)
-      eventSource.close()
-    }
   }
   return (
     <>
